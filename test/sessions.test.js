@@ -144,19 +144,35 @@ test('Codex sessions come from recent rollouts; an old "working" one reads as qu
   assert.equal(src.sessions.length, 0, 'not touched in 8 hours: not listed');
 });
 
+const session = (agent, id, cwd, status, lastActivityAt) => ({
+  agent,
+  id,
+  cwd,
+  project: cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop(),
+  status,
+  lastActivityAt,
+  recent: [],
+  file: 'x',
+});
+
 test('rows: one per folder, a pending approval marks its session and goes first', () => {
-  const s = (agent, id, cwd, status, lastActivityAt) => ({ agent, id, cwd, project: cwd.split(/[\\/]/).pop(), status, lastActivityAt, recent: [], file: 'x' });
   const rows = groupSessions(
     [
-      s('claude', 'a', 'D:\\Repos\\shop', 'your-turn', 5),
-      s('codex', 'b', 'd:/repos/shop/', 'working', 4),
-      s('claude', 'c', 'D:\\Repos\\blog', 'your-turn', 9),
+      session('claude', 'a', 'D:\\Repos\\shop', 'your-turn', 5),
+      session('codex', 'b', 'D:/Repos/shop/', 'working', 4), // same folder, other separators
+      session('claude', 'c', 'D:\\Repos\\blog', 'your-turn', 9),
     ],
     [{ id: 'ap-1', sessionId: 'c' }],
   );
   assert.deepEqual(rows.map((r) => r.project), ['blog', 'shop']);
   assert.equal(rows[0].sessions[0].status, 'approval');
   assert.deepEqual(rows[0].sessions[0].approvalIds, ['ap-1']);
-  if (process.platform === 'win32') assert.deepEqual(rows[1].sessions.map((x) => x.id), ['b', 'a'], 'same folder, working first');
+  assert.deepEqual(rows[1].sessions.map((x) => x.id), ['b', 'a'], 'same folder, working first');
   assert.equal('file' in rows[1].sessions[0], false, 'internal paths stay on the server');
+});
+
+test('folder case is ignored on Windows only', () => {
+  const rows = groupSessions([session('claude', 'a', 'D:\\Repos\\shop', 'your-turn', 5), session('codex', 'b', 'd:\\repos\\shop', 'working', 4)], []);
+  // Windows paths are case-insensitive; on macOS and Linux these are two folders.
+  assert.equal(rows.length, process.platform === 'win32' ? 1 : 2);
 });

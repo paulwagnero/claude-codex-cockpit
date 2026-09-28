@@ -34,6 +34,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # The installers are named after package.json's version, so a tag has to match it.
+      - name: Tag matches package.json version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+            exit 1
+          fi
 
   windows:
     needs: test
@@ -133,9 +143,15 @@ jobs:
         with:
           path: artifacts
           pattern: '{windows,mac}'
-      - name: Draft the release
+      # A new tag gets a draft release to review and publish. If a release for the
+      # tag already exists (made by hand, or a re-run), the files are replaced on it.
+      - name: Draft the release, or attach to the existing one
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --generate-notes \
-            --title "Claude Codex Cockpit $GITHUB_REF_NAME" artifacts/windows/* artifacts/mac/*
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber artifacts/windows/* artifacts/mac/*
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --generate-notes \
+              --title "Claude Codex Cockpit $GITHUB_REF_NAME" artifacts/windows/* artifacts/mac/*
+          fi
