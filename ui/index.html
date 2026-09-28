@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="cockpit-token" content="">
+<title>Claude Codex Cockpit</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<header class="strip">
+  <span class="title">cockpit</span>
+  <span id="conn" class="conn" hidden>server offline, retrying</span>
+  <span class="chrome">
+    <button id="gear" type="button" title="Connections" aria-label="Connections" aria-expanded="false"><svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M9.4 1l.3 1.9c.5.2.9.4 1.3.7l1.8-.7 1.4 2.4-1.5 1.2c.1.5.1 1 0 1.5l1.5 1.2-1.4 2.4-1.8-.7c-.4.3-.8.6-1.3.7L9.4 15H6.6l-.3-1.9c-.5-.2-.9-.4-1.3-.7l-1.8.7-1.4-2.4 1.5-1.2a4 4 0 0 1 0-1.5L1.8 6.8l1.4-2.4 1.8.7c.4-.3.8-.6 1.3-.7L6.6 1h2.8zM8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z"/></svg></button>
+    <button id="pin" type="button" title="Keep on top" aria-label="Keep on top" aria-pressed="true"><svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M10.2 1.2 14.8 5.8l-1.3 1.3-1-.4-2.6 2.6.3 3.1-1.3 1.3-2.8-2.8-3.6 3.6-.8-.8 3.6-3.6-2.8-2.8 1.3-1.3 3.1.3 2.6-2.6-.4-1z"/></svg></button>
+    <button id="min" type="button" title="Minimize" aria-label="Minimize">&#x2013;</button>
+    <button id="close" type="button" title="Close cockpit" aria-label="Close">&#x2715;</button>
+  </span>
+</header>
+<main>
+  <section id="setup" hidden>
+    <div class="setup-head"><span>connections</span><button id="setup-close" type="button" title="Close connections" aria-label="Close connections">&#x2715;</button></div>
+    <div class="setup-rows"></div>
+    <div class="setup-msg" hidden></div>
+    <div class="setup-files"></div>
+  </section>
+  <section id="approvals" aria-live="assertive" hidden></section>
+  <section class="provider" data-provider="claude">
+    <div class="phead"><span class="pname">claude</span><span class="pmeta"></span></div>
+    <div class="meter" data-window="fiveHour"></div>
+    <div class="meter" data-window="weekly"></div>
+  </section>
+  <section class="provider" data-provider="codex">
+    <div class="phead"><span class="pname">codex</span><span class="pmeta"></span></div>
+    <div class="meter" data-window="fiveHour"></div>
+    <div class="meter" data-window="weekly"></div>
+  </section>
+  <section id="sessions">
+    <div class="shead-all">sessions</div>
+    <div id="no-sessions" class="empty">no open sessions</div>
+  </section>
+</main>
+<template id="project">
+  <section class="project">
+    <div class="project-name"></div>
+    <div class="project-sessions"></div>
+  </section>
+</template>
+<template id="session">
+  <div class="session">
+    <div class="sline">
+      <span class="glyph" aria-hidden="true"></span>
+      <span class="state"></span>
+      <span class="agent"></span>
+      <span class="age"></span>
+    </div>
+    <div class="stitle"></div>
+    <ul class="recent"></ul>
+    <div class="row-approvals"></div>
+  </div>
+</template>
+<template id="meter">
+  <span class="label"></span>
+  <div class="bar"><div class="fill"></div><div class="tick"></div></div>
+  <span class="pct"></span>
+  <span class="reset"></span>
+  <div class="note"></div>
+</template>
+<template id="setup-row">
+  <div class="setup-row">
+    <span class="sdot" aria-hidden="true"></span>
+    <span class="slabel"></span>
+    <span class="sstate"></span>
+    <button type="button" class="sbtn"></button>
+    <div class="snote"></div>
+  </div>
+</template>
+<template id="approval">
+  <article class="approval">
+    <div class="ahead"><span class="who"></span><span class="age"></span></div>
+    <div class="what"></div>
+    <pre class="detail"></pre>
+    <div class="why"></div>
+    <div class="actions">
+      <button type="button" class="approve" data-decision="allow">Approve</button>
+      <button type="button" class="deny" data-decision="deny">Deny</button>
+      <button type="button" class="terminal" data-decision="terminal" title="Leave this one to the terminal prompt">answer in terminal</button>
+      <span class="fallback"></span>
+    </div>
+  </article>
+</template>
+<script src="/lib/usage.js"></script>
+<script src="/ui/app.js"></script>
+</body>
+</html>

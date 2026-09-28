@@ -1,0 +1,381 @@
+/* cockpit panel. Quiet by default: only warn and hot get color, and the
+   approval state is the one loud thing. */
+
+:root {
+  color-scheme: dark;
+  --bg: #0d0f12;
+  --line: #1c2026;
+  --track: #1a1e24;
+  --text: #d7dde5;
+  --dim: #7d8691;
+  --faint: #4d555f;
+  --ok: #4c8571;
+  --warn: #d8a634;
+  --hot: #e5534b;
+  --tick: #c5cdd6;
+  --alert: #ffae34;
+  --alert-bg: #2b1e07;
+  --approve: #2c9a5a;
+  --deny: #e5534b;
+  --working: #5aa9ff;
+  --done: #4fc27f;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.35 var(--sans);
+  user-select: none;
+  cursor: default;
+}
+
+/* Drag strip: the whole top edge moves the frameless window. */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 4px 0 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--faint);
+  -webkit-app-region: drag;
+}
+.strip .title { font-size: 12px; }
+.strip .conn { font: 11px var(--mono); color: var(--warn); }
+.strip .chrome { margin-left: auto; display: flex; }
+.strip button {
+  -webkit-app-region: no-drag;
+  width: 26px;
+  height: 22px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--faint);
+  font: 12px/1 var(--sans);
+}
+.strip button:hover { color: var(--text); background: #1a1e24; }
+.strip #close:hover { background: #5c1f1c; }
+.strip #pin[aria-pressed="false"] { opacity: 0.4; }
+body:not(.in-app) .strip .chrome { display: none; } /* plain browser: no window to control */
+
+main {
+  height: calc(100% - 28px);
+  overflow-y: auto;
+  padding: 2px 14px 10px;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a3038; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3a424c; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+.provider { padding: 10px 0 6px; }
+.provider + .provider { border-top: 1px solid var(--line); }
+
+.phead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.pname { font-size: 13px; color: var(--dim); }
+.pmeta { font: 11px var(--mono); color: var(--faint); }
+
+.meter {
+  display: grid;
+  grid-template-columns: 40px 1fr 62px 62px;
+  align-items: center;
+  column-gap: 10px;
+  padding: 4px 0;
+}
+.label { font: 12px var(--mono); color: var(--dim); }
+
+.bar { position: relative; height: 14px; background: var(--track); }
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--ok);
+  transition: width 0.6s ease, background-color 0.3s;
+}
+/* How much of the window has passed. Fill beyond the tick = ahead of pace. */
+.tick {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--tick);
+}
+
+.pct {
+  font: 600 24px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.reset {
+  font: 12px var(--mono);
+  color: var(--dim);
+  text-align: right;
+  white-space: nowrap;
+}
+.note {
+  grid-column: 2 / -1;
+  font: 11px var(--mono);
+  color: var(--dim);
+}
+.note:empty { display: none; }
+
+/* Bar and number carry the level; the pace note stays dim so a hot week
+   doesn't compete with an approval request. */
+.meter[data-level="warn"] .fill { background: var(--warn); }
+.meter[data-level="warn"] .pct { color: var(--warn); }
+.meter[data-level="hot"] .fill { background: var(--hot); }
+.meter[data-level="hot"] .pct { color: var(--hot); }
+.meter[data-level="reset"] .pct,
+.meter[data-level="none"] .pct { color: var(--faint); }
+.meter[data-level="reset"] .tick,
+.meter[data-level="none"] .tick { display: none; }
+
+/* ---- connections ---- */
+
+.strip #gear { position: relative; }
+.strip #gear.needs-update::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--alert);
+}
+.strip #gear[aria-expanded="true"] { color: var(--text); }
+
+#setup { padding: 10px 0 8px; border-bottom: 1px solid var(--line); }
+#setup[hidden] { display: none; }
+.setup-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--dim); margin-bottom: 6px; }
+.setup-head button { border: 0; background: none; color: var(--faint); font-size: 12px; padding: 2px 4px; }
+.setup-head button:hover { color: var(--text); }
+
+.setup-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.sdot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); justify-self: center; }
+.setup-row[data-state="on"] .sdot { background: var(--done); }
+.setup-row[data-state="outdated"] .sdot,
+.setup-row[data-state="error"] .sdot { background: var(--alert); }
+.setup-row[data-state="unavailable"] { color: var(--faint); }
+.sstate { font: 12px var(--mono); color: var(--dim); }
+.setup-row[data-state="on"] .sstate { color: var(--done); }
+.setup-row[data-state="outdated"] .sstate { color: var(--alert); }
+.sbtn {
+  padding: 3px 10px;
+  border: 1px solid #2f3742;
+  border-radius: 3px;
+  background: #161a20;
+  color: var(--text);
+  font: 12px var(--sans);
+}
+.sbtn:hover:not(:disabled) { background: #1f252d; }
+.sbtn[hidden] { display: none; }
+.setup-row[data-state="off"] .sbtn,
+.setup-row[data-state="outdated"] .sbtn { border-color: var(--approve); background: #173424; }
+.snote { grid-column: 2 / -1; font-size: 11px; color: var(--dim); }
+.snote:empty { display: none; }
+.setup-msg {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: #0a0b0d;
+  font: 11px/1.5 var(--mono);
+  color: var(--dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}
+.setup-msg[data-kind="action"] { color: var(--alert); }
+.setup-msg[data-kind="error"] { color: var(--hot); }
+.setup-msg[hidden] { display: none; }
+.setup-files { margin-top: 6px; font: 10px/1.5 var(--mono); color: var(--faint); white-space: pre-wrap; word-break: break-all; }
+
+/* ---- sessions ---- */
+
+#sessions { border-top: 1px solid var(--line); padding-top: 8px; }
+.shead-all { font-size: 13px; color: var(--dim); margin-bottom: 2px; }
+.empty { font: 12px var(--mono); color: var(--faint); padding: 4px 0; }
+
+.project { padding: 6px 0 4px; }
+.project + .project { border-top: 1px solid #16191e; }
+.project-name {
+  font: 600 14px/1.3 var(--sans);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session { padding: 3px 0 2px; }
+.sline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font: 12px var(--mono);
+  color: var(--dim);
+}
+.glyph {
+  width: 1.1em;
+  text-align: center;
+  font: 700 15px/1 var(--mono);
+}
+.sline .state { color: var(--text); }
+.sline .agent { color: var(--faint); }
+.sline .age { margin-left: auto; color: var(--faint); }
+
+.session[data-status="working"] .glyph { color: var(--working); animation: breathe 1.6s ease-in-out infinite; }
+.session[data-status="working"] .state { color: var(--working); }
+.session[data-status="your-turn"] .glyph,
+.session[data-status="your-turn"] .state { color: var(--done); }
+.session[data-status="approval"] .glyph,
+.session[data-status="approval"] .state,
+.session[data-status="needs-you"] .glyph,
+.session[data-status="needs-you"] .state { color: var(--alert); }
+.session[data-status="interrupted"] .glyph { color: var(--dim); }
+.session[data-status="quiet"] .glyph,
+.session[data-status="quiet"] .state { color: var(--faint); }
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.stitle {
+  margin: 1px 0 0 calc(1.1em + 8px);
+  font-size: 12px;
+  color: #aeb7c2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent {
+  list-style: none;
+  margin: 2px 0 0 calc(1.1em + 8px);
+  padding: 0;
+}
+.recent li {
+  font: 12px/1.5 var(--mono);
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent li[data-kind="you"] { color: #8fb4e6; }
+.recent li[data-kind="agent"] { color: #c3cad3; }
+.recent li[data-kind="note"] { font-style: italic; }
+.stitle[hidden] { display: none; }
+
+/* An approval inside its session row spans the panel's full width. */
+.row-approvals:not(:empty) { margin: 6px -14px 2px; }
+
+/* ---- approvals: the one loud thing ---- */
+
+#approvals { margin: 0 -14px; padding-top: 8px; }
+
+.approval {
+  padding: 10px 14px 12px;
+  border-left: 4px solid var(--alert);
+  background: var(--alert-bg);
+}
+.approval + .approval { margin-top: 2px; }
+
+.ahead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font: 12px var(--mono);
+  color: var(--alert);
+}
+.ahead .age { color: var(--dim); }
+
+.approval .what {
+  margin: 4px 0 6px;
+  font: 600 16px/1.3 var(--mono);
+  color: #fff;
+  word-break: break-word;
+}
+
+.approval .detail {
+  max-height: 11.5em;
+  margin: 0 0 6px;
+  padding: 7px 9px;
+  overflow: auto;
+  background: #0a0b0d;
+  color: #e8edf2;
+  font: 12px/1.45 var(--mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  cursor: text;
+}
+.approval .why { font-size: 12px; color: #c2b59b; margin-bottom: 4px; }
+.approval [hidden] { display: none; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.actions button {
+  padding: 6px 16px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font: 600 13px var(--sans);
+}
+.actions .approve { background: var(--approve); color: #fff; }
+.actions .approve:hover:not(:disabled) { background: #33b068; }
+.actions .deny { background: transparent; border-color: var(--deny); color: #ffb8b2; }
+.actions .deny:hover:not(:disabled) { background: #3a1513; }
+.actions .terminal {
+  padding: 6px 2px;
+  background: none;
+  color: var(--dim);
+  font-weight: 400;
+  text-decoration: underline;
+}
+.actions button:disabled { opacity: 0.4; }
+.fallback { margin-left: auto; font: 11px var(--mono); color: var(--dim); }
+.approval.sent { opacity: 0.6; }
+
+/* The whole window pulses while anything waits, to be seen from across the desk. */
+body.attention::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 3px var(--alert);
+  animation: pulse 1.1s ease-in-out infinite alternate;
+}
+body.attention .strip { background: var(--alert-bg); color: var(--alert); }
+@keyframes pulse {
+  from { opacity: 0.2; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.attention::after,
+  .session[data-status="working"] .glyph { animation: none; }
+}

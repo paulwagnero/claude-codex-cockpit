@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cockpit debug</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 12px 16px; background: #0e1014; color: #c3cad3; font: 13px/1.55 "Cascadia Mono", Consolas, ui-monospace, monospace; }
+  header { color: #7d8590; margin-bottom: 10px; }
+  #summary { color: #e6edf3; }
+  pre { margin: 0 0 12px; white-space: pre-wrap; word-break: break-word; }
+  #raw { color: #7d8590; }
+</style>
+</head>
+<body>
+<header>cockpit raw state · <span id="status">connecting</span></header>
+<pre id="summary"></pre>
+<pre id="raw"></pre>
+<script src="/lib/usage.js"></script>
+<script src="/debug.js"></script>
+</body>
+</html>

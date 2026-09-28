@@ -1,0 +1,96 @@
+{
+  "name": "claude-codex-cockpit",
+  "productName": "Claude Codex Cockpit",
+  "version": "0.1.0",
+  "description": "Always-on-top desktop panel for Claude Code and Codex: usage limits with pace, live session status, and approve or deny permission requests without switching to the terminal",
+  "keywords": [
+    "claude-code",
+    "codex",
+    "codex-cli",
+    "claude",
+    "anthropic",
+    "openai",
+    "usage",
+    "rate-limits",
+    "approvals",
+    "permissions",
+    "hooks",
+    "statusline",
+    "electron",
+    "desktop",
+    "monitor"
+  ],
+  "homepage": "https://github.com/paulwagnero/claude-codex-cockpit#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paulwagnero/claude-codex-cockpit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/paulwagnero/claude-codex-cockpit/issues"
+  },
+  "author": "Paul Wagner",
+  "license": "MIT",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "node node_modules/electron/install.js",
+    "server": "node server/index.js",
+    "icons": "electron scripts/make-icons.js",
+    "test": "node --test test/*.test.js",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --universal --publish never"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "io.github.paulwagnero.claude-codex-cockpit",
+    "productName": "Claude Codex Cockpit",
+    "copyright": "Copyright © 2026 Paul Wagner",
+    "asar": false,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "package.json",
+      "LICENSE",
+      "electron/**",
+      "server/**",
+      "lib/**",
+      "bin/**",
+      "ui/**"
+    ],
+    "win": {
+      "executableName": "claude-codex-cockpit",
+      "icon": "build/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "zip", "arch": ["x64"] }
+      ],
+      "artifactName": "Claude-Codex-Cockpit-${version}-win-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Claude Codex Cockpit",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Claude-Codex-Cockpit-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png",
+      "identity": null,
+      "target": [
+        { "target": "dmg", "arch": ["universal"] },
+        { "target": "zip", "arch": ["universal"] }
+      ],
+      "artifactName": "Claude-Codex-Cockpit-${version}-mac-${arch}.${ext}"
+    }
+  }
+}
