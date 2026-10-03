@@ -3,6 +3,8 @@
 // the tests can check them without a Stream Deck.
 //
 //   claude, codex          the 5-hour and weekly bars, colored by pace like the panel
+//   claude-allow,          the same bars; the key glows while the request next in
+//   codex-allow            line is from that tool, and a press allows it once
 //   request                the request that has waited longest; with none, the sessions
 //   allow, always, deny    light up while a request waits
 //
@@ -17,7 +19,7 @@ const path = require('path');
 const ROOT = path.join(fs.realpathSync(__dirname), '..', '..');
 const U = require(path.join(ROOT, 'lib', 'usage'));
 
-const ACTIONS = ['claude', 'codex', 'request', 'allow', 'always', 'deny'];
+const ACTIONS = ['claude', 'codex', 'request', 'allow', 'always', 'deny', 'claude-allow', 'codex-allow'];
 // The Stream Deck buttons share the panel's guard: a request that just
 // appeared can't be answered by a press that was already on its way.
 const ARM_MS = 700;
@@ -71,6 +73,11 @@ function face(action, view, now) {
     case 'claude':
     case 'codex':
       return usageFace(action, view, now);
+    case 'claude-allow':
+    case 'codex-allow': {
+      const provider = action.slice(0, -'-allow'.length);
+      return usageFace(provider, view, now, view.request?.agent === provider);
+    }
     case 'request':
       return requestFace(view, now);
     case 'allow':
@@ -86,6 +93,13 @@ function face(action, view, now) {
 function keyAction(action, view, now) {
   if (action === 'claude' || action === 'codex') return { ignore: true };
   const r = view.request;
+  if (action === 'claude-allow' || action === 'codex-allow') {
+    // One line, oldest first: only the tool whose request is next can answer.
+    if (!r) return { ignore: true };
+    if (r.agent !== action.slice(0, -'-allow'.length)) return { refuse: `next in line is ${r.agent}` };
+    if (!view.armed) return { refuse: 'just appeared' };
+    return { id: r.id, decision: 'allow' };
+  }
   if (!r) return action === 'request' ? { ignore: true } : { refuse: 'nothing waiting' };
   if (!view.armed) return { refuse: 'just appeared' };
   if (action === 'always' && !r.always) return { refuse: 'only once for this one' };
@@ -94,14 +108,21 @@ function keyAction(action, view, now) {
 
 // ---- usage ----
 
-function usageFace(provider, view, now) {
+// glow: this tool's request is next in line, and a press on this key allows it.
+function usageFace(provider, view, now, glow = false) {
   const name = provider === 'claude' ? 'CLAUDE' : 'CODEX';
   let body = text(72, 21, name, { size: 18, weight: 700, fill: C[provider], anchor: 'middle' });
   if (!view.connected) return svg(body + text(72, 84, view.starting ? 'starting…' : 'cockpit off', { size: 18, fill: C.dim, anchor: 'middle' }));
   const u = view.usage[provider];
-  if (!u || (!u.fiveHour && !u.weekly)) return svg(body + text(72, 84, 'no data yet', { size: 18, fill: C.dim, anchor: 'middle' }));
-  body += meter('5h', u.fiveHour, now, 26) + meter('wk', u.weekly, now, 82);
+  if (!u || (!u.fiveHour && !u.weekly)) body += text(72, 84, 'no data yet', { size: 18, fill: C.dim, anchor: 'middle' });
+  else body += meter('5h', u.fiveHour, now, 26) + meter('wk', u.weekly, now, 82);
+  // The request key's pulse, thin and still until the guard time has passed.
+  if (glow) body += border(view.armed ? (Math.floor(now / 500) % 2 === 0 ? 7 : 3) : 2);
   return svg(body);
+}
+
+function border(width) {
+  return `<rect x="4" y="4" width="136" height="136" rx="12" fill="none" stroke="${C.alert}" stroke-width="${width}"/>`;
 }
 
 // A key is 72 or 80 pixels wide. The label and the time to the reset stack on
@@ -139,8 +160,7 @@ function requestFace(view, now) {
   }
   const r = view.request;
   if (!r) return sessionsFace(view);
-  const pulse = Math.floor(now / 500) % 2 === 0;
-  let s = `<rect x="4" y="4" width="136" height="136" rx="12" fill="none" stroke="${C.alert}" stroke-width="${pulse ? 7 : 3}"/>`;
+  let s = border(Math.floor(now / 500) % 2 === 0 ? 7 : 3);
   s += text(14, 32, r.agent.toUpperCase(), { size: 16, weight: 700, fill: C[r.agent] || C.text });
   if (view.count > 1) s += text(130, 32, `1/${view.count}`, { size: 16, weight: 700, fill: C.alert, anchor: 'end' });
   s += text(14, 60, fit(r.title, 11), { size: 22, weight: 700 });

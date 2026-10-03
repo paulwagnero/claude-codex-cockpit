@@ -17,7 +17,10 @@
   "Icon": "imgs/plugin",
   "Category": "Claude Codex Cockpit",
   "CategoryIcon": "imgs/category",
-  "Profiles": [{ "Name": "profiles/Cockpit Mini", "DeviceType": 1, "DontAutoSwitchWhenInstalled": false }],
+  "Profiles": [
+    { "Name": "profiles/Cockpit Mini", "DeviceType": 1, "DontAutoSwitchWhenInstalled": false },
+    { "Name": "profiles/Cockpit Mini Top Row", "DeviceType": 1, "DontAutoSwitchWhenInstalled": true }
+  ],
   "Actions": [
     {
       "UUID": "io.github.paulwagnero.claude-codex-cockpit.claude",
@@ -75,6 +78,26 @@
       "Tooltip": "Deny the waiting request",
       "Icon": "imgs/actions/deny",
       "States": [{ "Image": "imgs/keys/deny", "ShowTitle": false }],
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "SupportedInMultiActions": false
+    },
+    {
+      "UUID": "io.github.paulwagnero.claude-codex-cockpit.claude-allow",
+      "Name": "Claude usage, press to allow",
+      "Tooltip": "Claude Code's usage bars. The key glows while a Claude Code request is next in line, and a press allows it once",
+      "Icon": "imgs/actions/usage",
+      "States": [{ "Image": "imgs/keys/claude-allow", "ShowTitle": false }],
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "SupportedInMultiActions": false
+    },
+    {
+      "UUID": "io.github.paulwagnero.claude-codex-cockpit.codex-allow",
+      "Name": "Codex usage, press to allow",
+      "Tooltip": "Codex's usage bars. The key glows while a Codex request is next in line, and a press allows it once",
+      "Icon": "imgs/actions/usage",
+      "States": [{ "Image": "imgs/keys/codex-allow", "ShowTitle": false }],
       "Controllers": ["Keypad"],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false

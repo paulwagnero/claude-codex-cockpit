@@ -182,13 +182,22 @@ does. It has no settings; each key does one thing:
 | Claude usage, Codex usage | the 5-hour and weekly bars with the time to each reset, colored by pace | nothing |
 | Waiting request | the request that has waited longest: tool, command, project, `1/2` when more wait. With none, your sessions | answer in terminal |
 | Allow once, Allow always, Deny | dark until a request waits, then lit; Always says what it would remember and where | answers the request shown |
+| Claude usage, press to allow; Codex usage, press to allow | the usage bars; a pulsing yellow border while that tool's request is next in line | allows that request once |
+
+Two profiles ship for the Mini: all six keys, or the top row only (the two
+"press to allow" usage keys and the waiting request), which leaves the bottom
+row for your own keys. Requests form one line, oldest first, so only one key
+glows at a time and the waiting-request key always shows what a press would
+allow.
 
 - **Connecting** links `streamdeck/` into Stream Deck's `Plugins` folder (a
   junction on Windows), so the plugin runs the app's own code and gets each
   update with it. Stream Deck loads new plugins when it starts, so restart it.
-- **The Mini layout** ships as a profile. The first time the plugin sees a
-  Stream Deck Mini, Stream Deck asks to install it and switches to it, once.
-  After that the profile is yours to change.
+- **The Mini layouts** ship as profiles. The first time the plugin sees a
+  Stream Deck Mini, Stream Deck asks to install the six-key one and switches
+  to it, once. The top-row one appears in Stream Deck's profile list, or opens
+  from `profiles/` in the plugin folder. After that the profiles are yours to
+  change.
 - **The same guard as the panel:** a key pressed within 0.7 seconds of a
   request appearing does nothing; the lit keys stay faded until then. A key
   that can't act flashes Stream Deck's warning sign.
@@ -236,7 +245,7 @@ npm test              # the tests, on node:test, with no test dependencies
 npm start             # the app, from source
 npm run server        # just the server (the app reuses a running one)
 npm run icons         # rebuild build/icon.* from build/icon.svg
-npm run streamdeck    # rebuild the Stream Deck key images and Mini profile
+npm run streamdeck    # rebuild the Stream Deck key images and Mini profiles
 npm run dist:win      # Windows installer and zip in dist/
 npm run dist:mac      # macOS universal build (on a Mac)
 node scripts/screenshots.js   # README screenshots, from made-up data
