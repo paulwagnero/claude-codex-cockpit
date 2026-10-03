@@ -134,6 +134,28 @@ test('config.json can turn approvals off, per agent', async (t) => {
   assert.deepEqual(app.approvals.list(), []);
 });
 
+test('Always for Claude Code: echoes its suggestions as updatedPermissions', async (t) => {
+  const { app, home } = await startApp(t);
+  const suggestions = [{ type: 'addRules', rules: [{ toolName: 'Bash', ruleContent: 'npm test:*' }], behavior: 'allow', destination: 'localSettings' }];
+  const hook = runHook({ home, input: JSON.stringify(permissionRequest({ permission_suggestions: suggestions })) });
+  const [item] = await waitFor(() => app.approvals.list().length === 1 && app.approvals.list());
+  app.approvals.decide(item.id, 'always');
+  const r = await hook;
+  assert.equal(r.code, 0);
+  assert.deepEqual(JSON.parse(r.out), {
+    hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: 'allow', updatedPermissions: suggestions } },
+  });
+});
+
+test('toHookOutput sends updatedPermissions only to Claude Code, and only for Always', () => {
+  const payload = { permission_suggestions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }] };
+  const decision = (answer, p, agent) => toHookOutput(answer, p, agent).hookSpecificOutput.decision;
+  assert.deepEqual(decision({ decision: 'allow', always: true }, payload, 'codex'), { behavior: 'allow' }, 'Codex fails closed on it');
+  assert.deepEqual(decision({ decision: 'allow' }, payload, 'claude'), { behavior: 'allow' }, 'a plain allow saves nothing');
+  assert.deepEqual(decision({ decision: 'allow', always: true }, {}, 'claude'), { behavior: 'allow' }, 'nothing suggested');
+  assert.deepEqual(decision({ decision: 'allow', always: true }, payload, 'claude').updatedPermissions, payload.permission_suggestions);
+});
+
 test('toHookOutput only ever allows on an explicit allow', () => {
   for (const answer of [null, undefined, {}, { decision: 'none' }, { decision: 'ALLOW' }, { decision: true }, 'allow']) {
     assert.equal(toHookOutput(answer), null);

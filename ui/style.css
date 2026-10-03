@@ -347,6 +347,8 @@ main {
 }
 .actions .approve { background: var(--approve); color: #fff; }
 .actions .approve:hover:not(:disabled) { background: #33b068; }
+.actions .always { background: transparent; border-color: var(--approve); color: #a6e3bf; }
+.actions .always:hover:not(:disabled) { background: #173424; }
 .actions .deny { background: transparent; border-color: var(--deny); color: #ffb8b2; }
 .actions .deny:hover:not(:disabled) { background: #3a1513; }
 .actions .terminal {

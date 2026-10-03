@@ -1,7 +1,8 @@
 'use strict';
 // cockpit window: always on top, frameless, remembers where you put it.
-// Reuses a server that is already running (npm run server), otherwise starts
-// one as a child process with Electron's own Node, so no system Node is needed.
+// Reuses a server that is already running (npm run server, or the one the
+// Stream Deck plugin starts), otherwise starts one as a child process with
+// Electron's own Node, so no system Node is needed.
 
 const { app, BrowserWindow, ipcMain, screen, shell } = require('electron');
 const { spawn } = require('child_process');
@@ -24,6 +25,7 @@ let port;
 let origin;
 let win = null;
 let serverChild = null;
+let ensuring = null;
 let quitting = false;
 
 // Dev aid: CLAUDE_CODEX_COCKPIT_SCREENSHOT=out.png renders the panel to a file and quits.
@@ -60,12 +62,18 @@ async function start() {
   if (process.platform === 'darwin' && fs.existsSync(ICON)) app.dock?.setIcon(ICON);
   await ensureServer();
   createWindow();
+  // A reused server can go away without us (the Stream Deck plugin's stops
+  // when Stream Deck quits): then start ours.
+  setInterval(() => serverChild || quitting || ensureServer(), 5000);
 }
 
-async function ensureServer() {
-  if (await probe(port)) return;
-  startServer();
-  for (let i = 0; i < 50 && !(await probe(port)); i++) await sleep(100);
+function ensureServer() {
+  ensuring ??= (async () => {
+    if (await probe(port)) return;
+    startServer();
+    for (let i = 0; i < 50 && !(await probe(port)); i++) await sleep(100);
+  })().finally(() => (ensuring = null));
+  return ensuring;
 }
 
 function startServer() {

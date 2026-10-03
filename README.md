@@ -3,7 +3,7 @@
 A small window that stays on top of your other windows and shows what Claude
 Code and Codex are up to: how much of your usage limits you've spent, what
 each session is doing, and a way to approve or deny tool requests without
-switching to the terminal.
+switching to the terminal. It can put the same things on a Stream Deck.
 
 <p>
   <img src="docs/screenshots/panel.png" width="360" alt="The window: usage bars for Claude and Codex, and two sessions, one working and one waiting for you">
@@ -33,7 +33,13 @@ few messages. A symbol shows where it stands:
 **Approvals.** When Claude Code or Codex asks for permission, the request
 opens in that session's row, showing the exact command, and you get
 **Approve** and **Deny** buttons. The window pulses so you notice it from
-across the desk.
+across the desk. **Always** approves and stops asking. For Claude Code, that
+saves the rule its own "don't ask again" would save. For a Codex command, the
+cockpit remembers the exact command in that folder.
+
+**Stream Deck.** Six keys, laid out for a Stream Deck Mini: the Claude and
+Codex usage bars, the request that's waiting, and **Allow**, **Always** and
+**Deny** for it.
 
 ## Install
 
@@ -80,10 +86,24 @@ Here's what connecting does, so there are no surprises:
 Codex asks you to confirm new hooks: start `codex`, type `/hooks`, and trust
 the Claude Codex Cockpit entry. Codex usage itself needs no setup.
 
+**Stream Deck:** press **connect** next to Stream Deck, then quit Stream Deck
+from its tray icon and start it again. A Stream Deck Mini switches to the
+cockpit keys once; Stream Deck asks you first. After that the keys work
+whenever Stream Deck runs, with or without the window open: if the app isn't
+running, the plugin starts the cockpit in the background. On another model,
+drag the cockpit's six actions onto keys yourself:
+
+| | | |
+| --- | --- | --- |
+| Claude usage | Codex usage | Waiting request |
+| Allow once | Allow always | Deny |
+
 ## Good to know
 
-- **Nothing gets approved without your click.** If the app is closed, or you
-  don't answer, Claude Code and Codex simply ask you in the terminal as usual.
+- **Nothing gets approved without your click,** or a rule you saved with
+  **Always**. If you don't answer, or nothing is showing the request (no
+  window open and no cockpit keys in view on a Stream Deck), Claude Code and
+  Codex simply ask you in the terminal as usual.
 - **The two tools wait differently.** Claude Code keeps its own prompt open
   in the terminal while the app waits, so you can answer in either place.
   Codex waits for the app first, for up to 60 seconds, before it shows its
@@ -101,6 +121,10 @@ the Claude Codex Cockpit entry. Codex usage itself needs no setup.
   message in Claude Code.
 - **No Codex approvals?** Make sure you trusted the hook with `/hooks` in
   Codex.
+- **Stream Deck keys say "cockpit off"?** The plugin couldn't start the
+  cockpit; `~/.claude-codex-cockpit/server.log` says why. Keys showing only
+  their pictures mean Stream Deck hasn't loaded the plugin: restart Stream
+  Deck. The plugin's log is `~/.claude-codex-cockpit/streamdeck.log`.
 - **Anything else?** The log is at `~/.claude-codex-cockpit/server.log`.
 
 More detail, such as how approvals behave in each tool, the safety rules,

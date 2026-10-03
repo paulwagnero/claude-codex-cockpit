@@ -6,13 +6,15 @@
 //   GET  /api/state           current state as JSON
 //   GET  /api/events          SSE stream: a `state` event on connect and on every change
 //   POST /api/approvals       a permission hook waiting for an answer (held open)
-//   POST /api/approvals/:id   the panel's answer: allow, deny or terminal
+//   POST /api/approvals/:id   the answer from the panel or a Stream Deck key:
+//                             allow, always, deny or terminal
 //   GET  /                    the panel (also what the Electron window loads)
 //   GET  /debug               raw live view of the state
 //
-// Every POST needs this run's token: hooks read it from ~/.claude-codex-cockpit/server.json,
-// the panel gets it inside its own page. A web page can't read either, so it
-// can't answer a permission request for you.
+// Every POST needs this run's token: hooks and the Stream Deck plugin read it
+// from ~/.claude-codex-cockpit/server.json, the panel gets it inside its own
+// page. A web page can't read either, so it can't answer a permission request
+// for you.
 
 const crypto = require('crypto');
 const http = require('http');
@@ -23,6 +25,8 @@ const { describeWindow, formatDuration, formatPercent } = require('../lib/usage'
 const { ClaudeUsageSource } = require('./claude-usage');
 const { CodexUsageSource } = require('./codex-usage');
 const { Approvals } = require('./approvals');
+const { projectName } = require('./describe-request');
+const { SavedRules } = require('./saved-rules');
 const { SessionsSource } = require('./sessions');
 const { SseHub } = require('./sse');
 const { version } = require('../package.json');
@@ -50,13 +54,15 @@ function createApp({
   claudeAccountFile = config.claudeAccountFile(),
   codexHome = config.codexHome(),
   audit = false,
+  // Hold a request only while a panel or Stream Deck keys are there to show it.
+  requireViewer = true,
   log = console.log,
 } = {}) {
   const files = config.paths(home);
   const claude = new ClaudeUsageSource({ dir: files.claudeStatusline, accountFile: claudeAccountFile });
   const codex = new CodexUsageSource({ home: codexHome });
   const sessions = new SessionsSource({ claudeDir, codexUsage: codex });
-  const approvals = new Approvals();
+  const approvals = new Approvals({ rules: new SavedRules(files.savedRules) });
   const hub = new SseHub();
   const token = crypto.randomBytes(24).toString('base64url');
   const startedAt = Date.now();
@@ -67,6 +73,8 @@ function createApp({
     const x = codex.usage;
     return {
       app: 'claude-codex-cockpit',
+      // Tells a page that a new server took over: it has a new token.
+      startedAt,
       serverTime: now,
       usage: {
         claude: {
@@ -164,6 +172,13 @@ function createApp({
     if ((agent !== 'claude' && agent !== 'codex') || !payload || typeof payload !== 'object' || payload.hook_event_name !== 'PermissionRequest') {
       return sendJson(res, 400, { decision: 'none', error: 'expected a PermissionRequest from claude or codex' });
     }
+    // No panel open and no Stream Deck keys in view: holding the request would
+    // only delay the tool's own prompt (Codex shows it after 60 s), so step
+    // aside at once. A saved "Always" still answers.
+    if (requireViewer && hub.clients.size === 0 && !approvals.savedRuleAllows(agent, payload)) {
+      log(`${clock()}  skip    ${agent.padEnd(6)}  ${projectName(payload.cwd)}  (nobody watching)`);
+      return sendJson(res, 200, { decision: 'none', reason: 'nobody watching' });
+    }
     const waitMs = Math.min(MAX_WAIT_MS, Math.max(1000, Number(body.waitMs) || 60_000));
     let answered = false;
     const item = approvals.open({
@@ -176,6 +191,7 @@ function createApp({
         sendJson(res, 200, answer);
       },
     });
+    if (item.settled) return; // a saved rule answered it already
     log(`${clock()}  ask     ${agent.padEnd(6)}  ${item.project}  ${item.title}`);
     res.on('close', () => answered || approvals.drop(item.id));
   }
@@ -187,7 +203,12 @@ function createApp({
     } catch (err) {
       return sendJson(res, err.status || 400, { error: err.message });
     }
-    if (!['allow', 'deny', 'terminal'].includes(body?.decision)) return sendJson(res, 400, { error: 'decision must be allow, deny or terminal' });
+    if (!['allow', 'always', 'deny', 'terminal'].includes(body?.decision)) {
+      return sendJson(res, 400, { error: 'decision must be allow, always, deny or terminal' });
+    }
+    const item = approvals.get(id);
+    if (!item) return sendJson(res, 404, { error: 'already answered or gone' });
+    if (body.decision === 'always' && !item.always) return sendJson(res, 409, { error: 'this request can only be allowed once' });
     if (!approvals.decide(id, body.decision)) return sendJson(res, 404, { error: 'already answered or gone' });
     sendJson(res, 200, { ok: true });
   }

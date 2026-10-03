@@ -1,0 +1,83 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "io.github.paulwagnero.claude-codex-cockpit",
+  "Name": "Claude Codex Cockpit",
+  "Author": "Paul Wagner",
+  "Description": "Claude Code and Codex usage limits on your keys, and Allow, Always or Deny for the request that is waiting. Needs the Claude Codex Cockpit app running.",
+  "URL": "https://github.com/paulwagnero/claude-codex-cockpit",
+  "Version": "0.1.0.0",
+  "SDKVersion": 2,
+  "Software": { "MinimumVersion": "7.1" },
+  "OS": [
+    { "Platform": "windows", "MinimumVersion": "10" },
+    { "Platform": "mac", "MinimumVersion": "13" }
+  ],
+  "Nodejs": { "Version": "24" },
+  "CodePath": "plugin.js",
+  "Icon": "imgs/plugin",
+  "Category": "Claude Codex Cockpit",
+  "CategoryIcon": "imgs/category",
+  "Profiles": [{ "Name": "profiles/Cockpit Mini", "DeviceType": 1, "DontAutoSwitchWhenInstalled": false }],
+  "Actions": [
+    {
+      "UUID": "io.github.paulwagnero.claude-codex-cockpit.claude",
+      "Name": "Claude usage",
+      "Tooltip": "Claude Code's 5-hour and weekly limits, colored by pace like the panel",
+      "Icon": "imgs/actions/usage",
+      "States": [{ "Image": "imgs/keys/claude", "ShowTitle": false }],
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "SupportedInMultiActions": false
+    },
+    {
+      "UUID": "io.github.paulwagnero.claude-codex-cockpit.codex",
+      "Name": "Codex usage",
+      "Tooltip": "Codex's 5-hour and weekly limits, colored by pace like the panel",
+      "Icon": "imgs/actions/usage",
+      "States": [{ "Image": "imgs/keys/codex", "ShowTitle": false }],
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "SupportedInMultiActions": false
+    },
+    {
+      "UUID": "io.github.paulwagnero.claude-codex-cockpit.request",
+      "Name": "Waiting request",
+      "Tooltip": "The request that has waited longest, or your sessions when nothing waits. Press it to answer in the terminal instead",
+      "Icon": "imgs/actions/request",
+      "States": [{ "Image": "imgs/keys/request", "ShowTitle": false }],
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "SupportedInMultiActions": false
+    },
+    {
+      "UUID": "io.github.paulwagnero.claude-codex-cockpit.allow",
+      "Name": "Allow once",
+      "Tooltip": "Allow the waiting request, this time only",
+      "Icon": "imgs/actions/allow",
+      "States": [{ "Image": "imgs/keys/allow", "ShowTitle": false }],
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "SupportedInMultiActions": false
+    },
+    {
+      "UUID": "io.github.paulwagnero.claude-codex-cockpit.always",
+      "Name": "Allow always",
+      "Tooltip": "Allow the waiting request and stop asking: the rule Claude Code suggests, or this exact Codex command in this folder",
+      "Icon": "imgs/actions/always",
+      "States": [{ "Image": "imgs/keys/always", "ShowTitle": false }],
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "SupportedInMultiActions": false
+    },
+    {
+      "UUID": "io.github.paulwagnero.claude-codex-cockpit.deny",
+      "Name": "Deny",
+      "Tooltip": "Deny the waiting request",
+      "Icon": "imgs/actions/deny",
+      "States": [{ "Image": "imgs/keys/deny", "ShowTitle": false }],
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "SupportedInMultiActions": false
+    }
+  ]
+}

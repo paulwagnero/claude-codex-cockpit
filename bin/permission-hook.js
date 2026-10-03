@@ -63,7 +63,7 @@ async function main(argv = process.argv.slice(2)) {
   const waitMs = Math.max(1000, waitSec * 1000);
   // Exec-form hooks are children of the tool itself; CLAUDE_PID also covers shell form.
   const watchPid = (agent === 'claude' && Number(process.env.CLAUDE_PID)) || process.ppid;
-  return toHookOutput(await ask(server, { agent, payload, waitMs, unattended }, waitMs + 1500, watchPid));
+  return toHookOutput(await ask(server, { agent, payload, waitMs, unattended }, waitMs + 1500, watchPid), payload, agent);
 }
 
 function parseArgs(argv) {
@@ -174,11 +174,19 @@ function ask(server, body, deadlineMs, watchPid) {
   });
 }
 
-// The same shape works for both tools. Only `behavior` and, on deny, `message`:
-// Codex rejects updatedInput, updatedPermissions and interrupt on this event.
-function toHookOutput(answer) {
+// The same shape works for both tools: `behavior` and, on deny, `message`.
+// "Allow always" on Claude Code also echoes the permission_suggestions it sent
+// as updatedPermissions, which saves the rule its own "don't ask again" option
+// would. Codex rejects updatedInput, updatedPermissions and interrupt on this
+// event; the server remembers its "always" itself and answers a plain allow.
+function toHookOutput(answer, payload = {}, agent = 'claude') {
   if (answer?.decision === 'allow') {
-    return { hookSpecificOutput: { hookEventName: 'PermissionRequest', decision: { behavior: 'allow' } } };
+    const decision = { behavior: 'allow' };
+    const suggestions = payload?.permission_suggestions;
+    if (answer.always === true && agent === 'claude' && Array.isArray(suggestions) && suggestions.length) {
+      decision.updatedPermissions = suggestions;
+    }
+    return { hookSpecificOutput: { hookEventName: 'PermissionRequest', decision } };
   }
   if (answer?.decision === 'deny') {
     const message = typeof answer.message === 'string' && answer.message ? answer.message : 'Denied in Claude Codex Cockpit.';

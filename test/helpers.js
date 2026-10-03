@@ -22,6 +22,8 @@ async function startApp(t, options = {}) {
     codexHome: path.join(home, 'codex'),
     claudeDir: path.join(home, 'claude'),
     claudeAccountFile: path.join(home, 'claude.json'),
+    // Most tests ask without a panel open; the viewer rule has its own tests.
+    requireViewer: false,
     log: () => {},
     ...options,
   });

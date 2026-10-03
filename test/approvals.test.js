@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const http = require('http');
 const path = require('path');
 const { DENY_MESSAGE } = require('../server/approvals');
 const { startApp, request, waitFor, permissionRequest, tempDir } = require('./helpers');
@@ -171,6 +172,86 @@ test('the panel page carries the token; nothing else does', async (t) => {
   assert.match((await request(app.port, { path: '/' })).body, new RegExp(`<meta name="cockpit-token" content="${app.token}">`));
   assert.doesNotMatch((await request(app.port, { path: '/api/state' })).body, new RegExp(app.token));
   assert.doesNotMatch((await request(app.port, { path: '/api/health' })).body, new RegExp(app.token));
+});
+
+const SUGGESTION = [{ type: 'addRules', rules: [{ toolName: 'Bash', ruleContent: 'npm test:*' }], behavior: 'allow', destination: 'localSettings' }];
+
+test('Always for Claude Code: the hook is told to save the rule Claude Code suggested', async (t) => {
+  const { app } = await startApp(t);
+  const hook = hookAsk(app, { payload: permissionRequest({ permission_suggestions: SUGGESTION }) });
+  const [item] = await pending(app);
+  assert.deepEqual(item.always, { what: 'Bash(npm test:*)', short: 'npm test:*', where: 'this project' });
+  assert.equal((await click(app, item.id, 'always')).status, 200);
+  assert.deepEqual((await hook).json, { decision: 'allow', always: true });
+});
+
+test('Always is refused for a request that can only be allowed once', async (t) => {
+  const { app } = await startApp(t);
+  const hook = hookAsk(app); // nothing suggested
+  const [item] = await pending(app);
+  assert.equal(item.always, null);
+  assert.equal((await click(app, item.id, 'always')).status, 409);
+  assert.equal(app.approvals.list().length, 1, 'still waiting');
+  await click(app, item.id, 'allow');
+  assert.deepEqual((await hook).json, { decision: 'allow' });
+});
+
+test('Always for Codex: the cockpit remembers the exact command, in that folder', async (t) => {
+  const { app, home } = await startApp(t, { audit: true });
+  const codex = (over = {}) => ({ agent: 'codex', payload: permissionRequest({ turn_id: 't1', ...over }) });
+  const first = hookAsk(app, codex());
+  const [item] = await pending(app);
+  assert.deepEqual(item.always, { what: 'this exact command', short: 'this command', where: 'this folder' });
+  await click(app, item.id, 'always');
+  assert.deepEqual((await first).json, { decision: 'allow' }, 'Codex itself only hears a plain allow');
+
+  assert.deepEqual((await hookAsk(app, codex())).json, { decision: 'allow' }, 'the same command is allowed at once');
+  assert.deepEqual(app.approvals.list(), [], 'and never shows up');
+
+  const changed = hookAsk(app, codex({ tool_input: { command: 'npm test -- --watch' } }));
+  const elsewhere = hookAsk(app, codex({ cwd: path.join(path.dirname(permissionRequest().cwd), 'other') }));
+  for (const a of await pending(app, 2)) await click(app, a.id, 'deny');
+  await Promise.all([changed, elsewhere]);
+
+  fs.rmSync(path.join(home, 'saved-rules.json'));
+  const forgotten = hookAsk(app, codex());
+  const [again] = await pending(app);
+  await click(app, again.id, 'deny');
+  assert.equal((await forgotten).json.decision, 'deny', 'deleting the file forgets the rule');
+
+  const log = path.join(home, 'approvals.log');
+  const lines = await waitFor(() => fs.existsSync(log) && fs.readFileSync(log, 'utf8').trim().split('\n').length >= 5 && fs.readFileSync(log, 'utf8').trim().split('\n'));
+  assert.deepEqual(lines.slice(0, 2).map((l) => [JSON.parse(l).decision, JSON.parse(l).reason]), [['always', 'panel'], ['allow', 'saved rule']]);
+});
+
+test('Codex: a request that is not a shell command can only be allowed once', async (t) => {
+  const { app } = await startApp(t);
+  const hook = hookAsk(app, { agent: 'codex', payload: permissionRequest({ turn_id: 't1', tool_name: 'apply_patch', tool_input: { command: '*** Begin Patch' } }) });
+  const [item] = await pending(app);
+  assert.equal(item.always, null);
+  await click(app, item.id, 'deny');
+  await hook;
+});
+
+test('nobody watching: the hook steps aside at once, unless a saved rule answers', async (t) => {
+  const { app } = await startApp(t, { requireViewer: true });
+  const started = Date.now();
+  assert.deepEqual((await hookAsk(app)).json, { decision: 'none', reason: 'nobody watching' });
+  assert.ok(Date.now() - started < 1500, 'no waiting on an empty room');
+  assert.deepEqual(app.approvals.list(), []);
+  app.approvals.rules.add({ tool: 'Bash', command: 'npm test', cwd: permissionRequest().cwd });
+  assert.deepEqual((await hookAsk(app, { agent: 'codex', payload: permissionRequest({ turn_id: 't1' }) })).json, { decision: 'allow' });
+});
+
+test('with a panel or Stream Deck keys watching, the request waits for them', async (t) => {
+  const { app } = await startApp(t, { requireViewer: true });
+  const viewer = await new Promise((resolve) => http.get({ host: '127.0.0.1', port: app.port, path: '/api/events' }, resolve));
+  t.after(() => viewer.destroy());
+  const hook = hookAsk(app);
+  const [item] = await pending(app);
+  await click(app, item.id, 'allow');
+  assert.deepEqual((await hook).json, { decision: 'allow' });
+  assert.equal(typeof app.state().startedAt, 'number', 'pages can tell when another server took over');
 });
 
 test('every settled request is written to the audit log', async (t) => {

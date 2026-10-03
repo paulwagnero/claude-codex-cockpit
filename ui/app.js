@@ -158,6 +158,11 @@ function buildApproval(a) {
   const why = el.querySelector('.why');
   why.textContent = a.note;
   why.hidden = !a.note;
+  // Only when the request can be remembered: Claude Code's own suggestion, or
+  // a Codex command kept by the cockpit.
+  const always = el.querySelector('.always');
+  always.hidden = !a.always;
+  if (a.always) always.title = `Approve, and remember it: ${a.always.what} (${a.always.where})`;
   for (const btn of el.querySelectorAll('button[data-decision]')) {
     btn.addEventListener('click', () => answer(a.id, btn.dataset.decision, el));
   }
@@ -211,7 +216,7 @@ async function answer(id, decision, el) {
   el.classList.add('sent');
   for (const btn of el.querySelectorAll('button')) btn.disabled = true;
   const fallback = el.querySelector('.fallback');
-  fallback.textContent = decision === 'allow' ? 'approving' : decision === 'deny' ? 'denying' : 'handing back';
+  fallback.textContent = decision === 'allow' || decision === 'always' ? 'approving' : decision === 'deny' ? 'denying' : 'handing back';
   try {
     const res = await fetch(`/api/approvals/${id}`, {
       method: 'POST',
@@ -239,6 +244,7 @@ const PART_LABELS = {
   'claude-usage': 'Claude Code · usage bars',
   'claude-approvals': 'Claude Code · approvals',
   'codex-approvals': 'Codex · approvals',
+  streamdeck: 'Stream Deck · keys',
 };
 const PART_STATE = {
   on: { text: 'connected', button: 'disconnect', action: 'disconnect' },
@@ -266,7 +272,7 @@ function renderSetup(s) {
       return row;
     }),
   );
-  document.querySelector('#setup .setup-files').textContent = `${s.files.claude}\n${s.files.codex}`;
+  document.querySelector('#setup .setup-files').textContent = [s.files.claude, s.files.codex, s.streamdeck.state !== 'unavailable' && s.files.streamdeck].filter(Boolean).join('\n');
   // The gear carries a dot while something is ours but out of date (the app moved, an older version wrote it).
   document.getElementById('gear').classList.toggle('needs-update', Object.keys(PART_LABELS).some((p) => s[p].state === 'outdated'));
 }
@@ -309,8 +315,13 @@ function render() {
 }
 
 const events = new EventSource('/api/events');
+let serverStartedAt = null;
 events.addEventListener('state', (e) => {
   state = JSON.parse(e.data);
+  // Another server took over (the Stream Deck's, or a restart). It has its own
+  // token, and this page still carries the old one.
+  if (serverStartedAt !== null && state.startedAt !== serverStartedAt) return location.reload();
+  serverStartedAt = state.startedAt;
   document.getElementById('conn').hidden = true;
   render();
 });
