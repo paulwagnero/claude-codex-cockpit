@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 'use strict';
-// Connect Claude Code and Codex to Claude Codex Cockpit from a terminal.
-// (The panel has the same thing behind its gear button.)
+// Connect Claude Code, Codex and a Stream Deck to Claude Codex Cockpit from a
+// terminal. (The panel has the same thing behind its gear button.)
 //
 //   node bin/setup.js status
-//   node bin/setup.js connect    [claude-usage] [claude-approvals] [codex-approvals] [--dry-run]
-//   node bin/setup.js disconnect [claude-usage] [claude-approvals] [codex-approvals] [--dry-run]
+//   node bin/setup.js connect    [claude-usage] [claude-approvals] [codex-approvals] [streamdeck] [--dry-run]
+//   node bin/setup.js disconnect [claude-usage] [claude-approvals] [codex-approvals] [streamdeck] [--dry-run]
 //
 // With no parts listed, connect and disconnect cover everything installed.
 
@@ -15,6 +15,7 @@ const LABELS = {
   'claude-usage': 'Claude Code usage bars (statusLine)',
   'claude-approvals': 'Claude Code approvals (PermissionRequest hook)',
   'codex-approvals': 'Codex approvals (PermissionRequest hook)',
+  streamdeck: 'Stream Deck keys (plugin linked into Stream Deck)',
 };
 
 function printStatus(s) {
@@ -22,7 +23,7 @@ function printStatus(s) {
     const { state, note } = s[part];
     console.log(`  ${state.padEnd(11)} ${LABELS[part]}${note ? `\n              ${note}` : ''}`);
   }
-  console.log(`\n  files: ${s.files.claude}\n         ${s.files.codex}`);
+  console.log(`\n  files: ${[s.files.claude, s.files.codex, s.files.streamdeck].filter(Boolean).join('\n         ')}`);
 }
 
 function main(argv) {

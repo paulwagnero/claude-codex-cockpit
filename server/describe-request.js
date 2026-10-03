@@ -1,7 +1,8 @@
 'use strict';
 // Turns a PermissionRequest hook payload (Claude Code or Codex) into what the
 // panel shows: a title naming the tool and its target, the detail being
-// approved (command, diff, patch, arguments) and an optional reason.
+// approved (command, diff, patch, arguments), an optional reason, and what
+// "Allow always" would remember.
 
 const path = require('path');
 
@@ -72,6 +73,85 @@ function describeRequest(payload) {
   return { title, detail: clip(detail, MAX_DETAIL), note: clip(notes.filter(Boolean).join(' · '), MAX_NOTE) };
 }
 
+// What "Allow always" would remember for this request, or null when it can't
+// be remembered: { what, short, where }, short being what fits on a key.
+//   Claude Code  the permission_suggestions it sent: what its own "don't ask
+//                again" option applies. The hook echoes them as updatedPermissions.
+//                That can be a rule for the project, or only a mode for this
+//                session (file edits): where says which.
+//   Codex        a hook can't add to Codex's rules (updatedPermissions fails
+//                closed), so the cockpit keeps the exact command for this folder
+//                itself: see saved-rules.js.
+function describeAlways(agent, payload) {
+  if (agent === 'claude') {
+    const entries = permissionSuggestions(payload);
+    if (!entries.length) return null;
+    const parts = entries.map(describeUpdate).filter((p) => p.text);
+    const where = [...new Set(entries.map((e) => DESTINATIONS[e.destination] || DESTINATIONS.session))];
+    // One part fits on a key: an allow rule says the most, then a mode.
+    const best = [...parts].sort((a, b) => a.rank - b.rank)[0];
+    return { what: parts.map((p) => p.text).join(', ') || "Claude Code's suggestion", short: best?.short || 'as suggested', where: where.join(' + ') };
+  }
+  if (agent === 'codex' && savedRuleFor(payload)) return { what: 'this exact command', short: 'this command', where: 'this folder' };
+  return null;
+}
+
+const DESTINATIONS = {
+  session: 'this session',
+  localSettings: 'this project',
+  projectSettings: 'this project, shared',
+  userSettings: 'every project',
+};
+const MODES = {
+  default: 'ask as usual',
+  manual: 'ask as usual',
+  acceptEdits: 'accept edits',
+  plan: 'plan mode',
+  auto: 'auto mode',
+  dontAsk: "don't ask",
+  bypassPermissions: 'bypass permissions',
+};
+
+function permissionSuggestions(payload) {
+  const list = payload?.permission_suggestions;
+  return Array.isArray(list) ? list.filter((e) => e && typeof e === 'object' && typeof e.type === 'string') : [];
+}
+
+// One permission update in words: { text, short, rank }, rank ordering which
+// part a key shows.
+function describeUpdate(e) {
+  const list = (Array.isArray(e.rules) ? e.rules : []).filter((r) => r && typeof r.toolName === 'string');
+  const rules = list.map((r) => (r.ruleContent ? `${r.toolName}(${r.ruleContent})` : r.toolName)).join(', ');
+  // A shell rule reads best as the command itself: "npm test:*".
+  const first = list[0];
+  const shortRule = !first ? '' : first.ruleContent && /^(Bash|PowerShell)$/.test(first.toolName) ? first.ruleContent : first.ruleContent ? `${first.toolName}(${first.ruleContent})` : first.toolName;
+  const dirs = Array.isArray(e.directories) ? e.directories.filter((d) => typeof d === 'string').join(', ') : '';
+  const verb = e.behavior && e.behavior !== 'allow' ? `${e.behavior} ` : '';
+  switch (e.type) {
+    case 'addRules':
+    case 'replaceRules':
+      return { text: rules && `${verb}${rules}`, short: `${verb}${shortRule}`, rank: verb ? 3 : 0 };
+    case 'removeRules':
+      return { text: rules && `stop ${verb}${rules}`, short: `stop ${shortRule}`, rank: 4 };
+    case 'setMode':
+      return { text: MODES[e.mode] || `${e.mode} mode`, short: MODES[e.mode] || `${e.mode} mode`, rank: 1 };
+    case 'addDirectories':
+      return { text: dirs && `access to ${dirs}`, short: 'folder access', rank: 2 };
+    case 'removeDirectories':
+      return { text: dirs && `no access to ${dirs}`, short: 'no folder access', rank: 4 };
+    default:
+      return { text: '', short: '', rank: 9 };
+  }
+}
+
+// The one kind of Codex request the cockpit can remember: a shell command.
+// Patches and MCP calls rarely repeat word for word.
+function savedRuleFor(payload) {
+  const command = payload?.tool_input?.command;
+  if (payload?.tool_name !== 'Bash' || typeof command !== 'string' || !command.trim()) return null;
+  return { tool: 'Bash', command, cwd: typeof payload.cwd === 'string' ? payload.cwd : '' };
+}
+
 function text(v) {
   return typeof v === 'string' ? v : v == null ? '' : String(v);
 }
@@ -98,4 +178,4 @@ function projectName(cwd) {
   return cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || cwd;
 }
 
-module.exports = { describeRequest, projectName };
+module.exports = { describeRequest, describeAlways, savedRuleFor, projectName };

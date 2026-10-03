@@ -10,7 +10,8 @@ const { tempDir } = require('./helpers');
 
 const ROOT = path.join(__dirname, '..');
 
-// A machine with Claude Code and Codex installed, both still unconfigured.
+// A machine with Claude Code and Codex installed, both still unconfigured,
+// and no Stream Deck app (its folder is never created here).
 function machine(t, overrides = {}) {
   const dir = tempDir(t);
   const env = setup.environment({
@@ -19,6 +20,7 @@ function machine(t, overrides = {}) {
     claudeDir: path.join(dir, '.claude'),
     codexHome: path.join(dir, '.codex'),
     cockpitHome: path.join(dir, '.claude-codex-cockpit'),
+    streamDeckDir: path.join(dir, 'StreamDeck'),
     claudeShell: 'sh',
     codexShell: 'cmd',
     ...overrides,
@@ -34,10 +36,10 @@ const states = (s) => setup.PARTS.map((p) => s[p].state);
 
 test('connect on a clean machine creates both files, and everything reads as on', (t) => {
   const { env, files, read } = machine(t);
-  assert.deepEqual(states(setup.status(env)), ['off', 'off', 'off']);
+  assert.deepEqual(states(setup.status(env)), ['off', 'off', 'off', 'unavailable']);
   const report = setup.apply('connect', setup.PARTS, env);
   assert.deepEqual(report.backups, [], 'nothing existed, so nothing to back up');
-  assert.deepEqual(states(setup.status(env)), ['on', 'on', 'on']);
+  assert.deepEqual(states(setup.status(env)), ['on', 'on', 'on', 'unavailable']);
   const claude = read(files.claude);
   assert.match(claude.statusLine.command, /statusline\.js" --cockpit$/);
   assert.equal(claude.statusLine.refreshInterval, 60);
@@ -106,7 +108,7 @@ test('disconnect removes only ours and tidies empty containers', (t) => {
   setup.apply('disconnect', setup.PARTS, env);
   assert.deepEqual(read(files.codex), { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'notify' }] }] } });
   assert.deepEqual(read(files.claude), {});
-  assert.deepEqual(states(setup.status(env)), ['off', 'off', 'off']);
+  assert.deepEqual(states(setup.status(env)), ['off', 'off', 'off', 'unavailable']);
 });
 
 test('a settings file that is not valid JSON is refused and left byte-for-byte alone', (t) => {
@@ -124,6 +126,61 @@ test('a tool that is not installed is reported, and skipped', (t) => {
   assert.equal(setup.status(env)['codex-approvals'].state, 'unavailable');
   assert.deepEqual(setup.apply('connect', ['codex-approvals'], env).changed, []);
   assert.equal(fs.existsSync(env.codexHome), false, 'no .codex folder is created for someone without Codex');
+});
+
+// A Stream Deck app, and a stand-in install whose plugin folder gets linked:
+// a test never links the real one.
+function withStreamDeck(t) {
+  const fake = path.join(tempDir(t), 'app');
+  const plugin = path.join(fake, 'streamdeck', 'io.github.paulwagnero.claude-codex-cockpit.sdPlugin');
+  fs.mkdirSync(plugin, { recursive: true });
+  fs.writeFileSync(path.join(plugin, 'manifest.json'), '{}');
+  const m = machine(t, { root: fake });
+  fs.mkdirSync(m.env.streamDeckDir);
+  return { ...m, plugin };
+}
+
+test('Stream Deck: connect links the plugin in, disconnect removes only the link', (t) => {
+  const { env, files, plugin } = withStreamDeck(t);
+  assert.equal(setup.status(env).streamdeck.state, 'off');
+  const report = setup.apply('connect', ['streamdeck'], env);
+  assert.deepEqual(report.changed, [files.streamdeck]);
+  assert.match(report.messages[0], /start it again/);
+  assert.equal(setup.status(env).streamdeck.state, 'on');
+  assert.ok(fs.lstatSync(files.streamdeck).isSymbolicLink());
+  assert.ok(fs.existsSync(path.join(files.streamdeck, 'manifest.json')), 'the link leads to the plugin');
+  assert.deepEqual(setup.apply('connect', ['streamdeck'], env).changed, [], 'connecting twice changes nothing');
+  setup.apply('disconnect', ['streamdeck'], env);
+  assert.equal(fs.existsSync(files.streamdeck), false);
+  assert.ok(fs.existsSync(path.join(plugin, 'manifest.json')), 'the plugin itself is untouched');
+  assert.equal(setup.status(env).streamdeck.state, 'off');
+});
+
+test('Stream Deck: a link to another install is replaced; a copied plugin is left alone', (t) => {
+  const { env, files } = withStreamDeck(t);
+  const old = path.join(tempDir(t), 'old-install');
+  fs.mkdirSync(old);
+  fs.mkdirSync(path.dirname(files.streamdeck), { recursive: true });
+  fs.symlinkSync(old, files.streamdeck, 'junction');
+  assert.equal(setup.status(env).streamdeck.state, 'outdated');
+  setup.apply('connect', ['streamdeck'], env);
+  assert.equal(setup.status(env).streamdeck.state, 'on');
+  assert.ok(fs.existsSync(old), "the old link's target is not deleted");
+
+  fs.unlinkSync(files.streamdeck);
+  fs.mkdirSync(files.streamdeck);
+  fs.writeFileSync(path.join(files.streamdeck, 'manifest.json'), '{}');
+  assert.equal(setup.status(env).streamdeck.state, 'error');
+  assert.throws(() => setup.apply('connect', ['streamdeck'], env), setup.SetupError);
+  setup.apply('disconnect', ['streamdeck'], env);
+  assert.ok(fs.existsSync(path.join(files.streamdeck, 'manifest.json')), 'a real folder is never removed');
+});
+
+test('Stream Deck: not installed means nothing to do', (t) => {
+  const { env } = machine(t);
+  assert.equal(setup.status(env).streamdeck.state, 'unavailable');
+  assert.deepEqual(setup.apply('connect', ['streamdeck'], env).changed, []);
+  assert.equal(fs.existsSync(env.streamDeckDir), false);
 });
 
 test('dry run reports without writing', (t) => {

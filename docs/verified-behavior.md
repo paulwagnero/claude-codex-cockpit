@@ -2,8 +2,10 @@
 
 Everything Claude Codex Cockpit relies on, and how each point was checked:
 against the live docs, in the tools' own source, or by running the real CLI.
-Versions: Claude Code 2.1.283 and Codex CLI 0.158.0 (September 2026). Re-check
-these points when either tool changes.
+Versions: Claude Code 2.1.283 and Codex CLI 0.158.0 (September 2026); the
+"Always" and Stream Deck points with Claude Code 2.1.288, Codex CLI 0.160.0
+and Stream Deck 7.6.0 (October 2026). Re-check these points when a tool
+changes.
 
 ## Claude Code
 
@@ -50,6 +52,27 @@ these points when either tool changes.
 - End to end with `claude -p --settings`: allow runs the tool, deny reaches
   Claude as a denial, and a closed panel leaves Claude's normal behavior
   unchanged. The hook exits in under 100 ms.
+
+### "Always" (updatedPermissions)
+
+- **Docs:** `updatedPermissions` (allow only) is an **array** of permission
+  update entries, the same shape as the `permission_suggestions` input, and
+  "a hook can echo one of the `permission_suggestions` it received". Entry
+  types: `addRules`, `replaceRules`, `removeRules`, `setMode`,
+  `addDirectories`, `removeDirectories`, each with a `destination`
+  (`session`, `localSettings`, `projectSettings`, `userSettings`).
+  `permission_suggestions` "isn't an exact list of the options you see".
+- **Source (bundled binary):** the decision validator rejects "an allow
+  decision whose updatedPermissions is not a list", and checks each entry's
+  type, destination and mode.
+- **End to end** (`claude -p`, Haiku, the real hook and server, answered
+  Always):
+  - `git init`: suggestions were one `addRules` entry with `localSettings`;
+    the tool ran, and `.claude/settings.local.json` gained
+    `"allow": ["Bash(git init *)"]`.
+  - `touch file`: suggestions were `addDirectories` and `setMode acceptEdits`,
+    both `session`; the tool ran and nothing was written to disk. So "Always"
+    is sometimes session-only, exactly as Claude Code's own dialog.
 
 ### Session registry and status
 
@@ -128,8 +151,63 @@ these points when either tool changes.
   ([openai/codex#23465](https://github.com/openai/codex/issues/23465)).
 - `codex exec` cannot request escalated permissions on its own, but
   `--approve-for-me` does route approvals through the flow above.
+- **No "Always" through the hook ([docs](https://developers.openai.com/codex/hooks), 0.160.0):**
+  "Don't return `updatedInput`, `updatedPermissions`, or `interrupt` for
+  `PermissionRequest`; those fields are reserved for future behavior and fail
+  closed today." The input carries `turn_id`, `tool_name`, `tool_input`
+  (`command` for Bash and apply_patch) and no suggested rule.
+- **Codex's own "don't ask again"** appends a line like
+  `prefix_rule(pattern=["npm", "test"], decision="allow")` to
+  `~/.codex/rules/default.rules`. **Source (`core/src/exec_policy.rs`):**
+  `append_amendment_and_update` writes the file *and* updates the policy in
+  memory; the policy is otherwise loaded once, when the session starts. A line
+  added from outside would only reach new sessions, and the prefix Codex would
+  propose (`proposed_execpolicy_amendment`) never reaches a hook. Hence the
+  cockpit keeps Codex's "Always" itself.
 - End to end with `codex exec --approve-for-me --dangerously-bypass-hook-trust -c hooks…`:
   allow, deny and panel closed all behaved as expected.
+
+## Stream Deck
+
+- **Docs ([SDK](https://docs.elgato.com/streamdeck/sdk/), WebSocket API 3.0):**
+  a plugin is started with `-port`, `-pluginUUID`, `-registerEvent` and
+  `-info`, connects to `ws://127.0.0.1:<port>` and sends
+  `{event: <registerEvent>, uuid: <pluginUUID>}`. The `@elgato/streamdeck`
+  package wraps the same protocol, so a plain script needs no packages:
+  `Nodejs.Version: "24"` in the manifest (Stream Deck 7.1+) brings Node's
+  built-in `WebSocket`.
+- `setImage` takes SVG as `data:image/svg+xml,<URL-encoded SVG>`; no animated
+  formats. Device type 1 is the Stream Deck Mini. A profile listed under
+  `Profiles` is installed the first time the plugin calls `switchToProfile`
+  with that `Name`.
+- **Live (Windows, Stream Deck 7.6.0, a Mini, model `20GAI9901`):**
+  - Stream Deck ran the plugin with its own Node 24.13.1
+    (`%APPDATA%\Elgato\StreamDeck\NodeJS`), through a junction in its
+    `Plugins` folder; `fs.realpathSync(__dirname)` resolves to the real folder,
+    so `lib/` is found.
+  - The bundled profile, a zip in the format of Elgato's own tutorial profiles
+    (`<id>.sdProfile/manifest.json` with an `Actions` map keyed `"column,row"`),
+    was converted ("Convert profile to new version"), installed ("Profile
+    profiles/Cockpit Mini installed for @(1)[…]") and shown after one
+    confirmation. `willAppear` reported each key at its column and row.
+  - A killed plugin was restarted by Stream Deck within about 6 seconds; a
+    restarted cockpit was picked up within 3.
+  - Key presses on the device answered three test requests as pressed:
+    Always, Always, Allow.
+  - Stream Deck does not reload plugins while running; a newly linked one
+    needs a restart of the app. A graceful close only hides it in the tray.
+  - A plugin that exits, even with code 0, is started again about 10 seconds
+    later.
+  - **Start-up race:** on a cold start (`StreamDeck.exe --runinbk`, as at
+    login), `willAppear` came right after the plugin connected when the plugin
+    connected first (2 of 3 starts). When the log showed "device attached" in
+    the same millisecond as "Plugin connected", no `willAppear` came at all,
+    while the Mini showed the cockpit page; restarting the plugin brought them
+    at once. Hence the plugin's one-time restart when no key shows up.
+  - With the app closed, the server the plugin started held a test request
+    for the deck and passed the answer back; opening the app reused that
+    server, and quitting Stream Deck stopped it, after which the open app
+    started its own.
 
 ## Windows and the packaged app
 

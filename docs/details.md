@@ -5,13 +5,14 @@ exactly what happens under the hood.
 
 ## Connecting
 
-The gear screen, or `node bin/setup.js`, manages three things:
+The gear screen, or `node bin/setup.js`, manages four things:
 
 | Row | What it writes | What you get |
 | --- | --- | --- |
 | Claude Code · usage bars | `statusLine` in `~/.claude/settings.json` | the Claude bars (Pro and Max only) |
-| Claude Code · approvals | a `PermissionRequest` hook in `~/.claude/settings.json` | Approve and Deny for Claude Code |
-| Codex · approvals | a `PermissionRequest` hook in `~/.codex/hooks.json` | Approve and Deny for Codex |
+| Claude Code · approvals | a `PermissionRequest` hook in `~/.claude/settings.json` | Approve, Always and Deny for Claude Code |
+| Codex · approvals | a `PermissionRequest` hook in `~/.codex/hooks.json` | Approve, Always and Deny for Codex |
+| Stream Deck · keys | a link to `streamdeck/` in Stream Deck's `Plugins` folder | the six keys; see [Stream Deck](#stream-deck) |
 
 - **Files are merged, not replaced.** A backup, `<file>.cockpit-backup-<time>`,
   goes next to a file before it changes, and a file that isn't valid JSON is
@@ -27,8 +28,8 @@ From a terminal, add `--dry-run` to preview:
 
 ```
 node bin/setup.js status
-node bin/setup.js connect      [claude-usage] [claude-approvals] [codex-approvals]
-node bin/setup.js disconnect   [claude-usage] [claude-approvals] [codex-approvals]
+node bin/setup.js connect      [claude-usage] [claude-approvals] [codex-approvals] [streamdeck]
+node bin/setup.js disconnect   [claude-usage] [claude-approvals] [codex-approvals] [streamdeck]
 ```
 
 ### Manual setup
@@ -108,15 +109,38 @@ code; see [verified-behavior.md](verified-behavior.md).
 - **Audit log:** every answered request goes into
   `~/.claude-codex-cockpit/approvals.log`.
 
+### Always
+
+**Always** approves and stops asking. It shows only when there is something
+to remember, and says what that is.
+
+| | Claude Code | Codex |
+| --- | --- | --- |
+| What is remembered | what Claude Code suggests: the same thing its own "don't ask again" applies | the exact command, in that folder |
+| Where | Claude Code's settings: usually `.claude/settings.local.json` in the project, sometimes only the session | `~/.claude-codex-cockpit/saved-rules.json` |
+| For | any request Claude Code makes a suggestion for | shell commands only |
+| Undo | remove the rule with `/permissions` in Claude Code | delete its entry from the file; it counts at once |
+
+- **Claude Code** sends its suggestions with each request, and the hook hands
+  them back. A command like `git init` becomes the rule `Bash(git init *)` in
+  that project. A file edit only switches the session to accepting edits, the
+  same as Claude Code's own dialog, and the button says "session".
+- **Codex** doesn't let a hook save rules yet, and a running Codex reads its
+  own `~/.codex/rules` only when a session starts. So the cockpit answers a
+  matching request itself, at once, while it runs. With the cockpit closed,
+  Codex asks as usual.
+
 ## Safety
 
 Whenever something goes wrong, the hook makes **no decision**. It exits
-quietly, and the tool shows its normal prompt. Only an explicit click on
-**Approve** can allow anything.
+quietly, and the tool shows its normal prompt. Only a press of **Approve** or
+**Always**, in the panel or on a Stream Deck, can allow anything. The one
+exception is a Codex command you saved with **Always** earlier.
 
 | Situation | What happens |
 | --- | --- |
 | The app isn't running | the hook steps aside in about 90 ms, without any network call |
+| Nobody is watching: no window open and no cockpit keys in view on a Stream Deck | the server answers "no decision" at once, so Codex doesn't sit out its 60 seconds |
 | The app crashed and left its state file | same, because the hook checks that the recorded process is alive |
 | The server doesn't answer | the hook gives up after 500 ms |
 | Nobody answers in time | no decision, just before the tool's own timeout |
@@ -124,9 +148,9 @@ quietly, and the tool shows its normal prompt. Only an explicit click on
 | A web page tries to answer | refused |
 
 - **Localhost only.** The server listens on 127.0.0.1.
-- **Web pages can't answer.** Answers need a per-run token that only the hook's
-  state file and the app's own page carry, and cross-site or DNS-rebinding
-  requests are refused.
+- **Web pages can't answer.** Answers need a per-run token that only the
+  state file (read by the hook and the Stream Deck plugin) and the app's own
+  page carry, and cross-site or DNS-rebinding requests are refused.
 - **No accidental clicks.** Buttons ignore clicks for their first 0.7
   seconds, so a request that pops up under your pointer can't be clicked by
   accident.
@@ -146,6 +170,41 @@ quietly, and the tool shows its normal prompt. Only an explicit click on
 - **The "out in …" note** uses your last 30 minutes for the 5-hour window, and
   the whole-window average for the week, because nights are part of a normal
   week.
+
+## Stream Deck
+
+The plugin in `streamdeck/` runs inside the Stream Deck app (7.1 or newer) on
+the Node 24 that Stream Deck brings, and talks to the cockpit the way the hook
+does. It has no settings; each key does one thing:
+
+| Key | Shows | Press |
+| --- | --- | --- |
+| Claude usage, Codex usage | the 5-hour and weekly bars with the time to each reset, colored by pace | nothing |
+| Waiting request | the request that has waited longest: tool, command, project, `1/2` when more wait. With none, your sessions | answer in terminal |
+| Allow once, Allow always, Deny | dark until a request waits, then lit; Always says what it would remember and where | answers the request shown |
+
+- **Connecting** links `streamdeck/` into Stream Deck's `Plugins` folder (a
+  junction on Windows), so the plugin runs the app's own code and gets each
+  update with it. Stream Deck loads new plugins when it starts, so restart it.
+- **The Mini layout** ships as a profile. The first time the plugin sees a
+  Stream Deck Mini, Stream Deck asks to install it and switches to it, once.
+  After that the profile is yours to change.
+- **The same guard as the panel:** a key pressed within 0.7 seconds of a
+  request appearing does nothing; the lit keys stay faded until then. A key
+  that can't act flashes Stream Deck's warning sign.
+- **Without the app:** when its keys are in view and no cockpit is running,
+  the plugin starts the cockpit's server itself, on Stream Deck's Node; the
+  keys say "starting…" for a moment. That server stops within 2 seconds of
+  Stream Deck quitting. Opening the app reuses it, and if it goes away while
+  the app is open, the app starts its own within 5 seconds and the panel
+  reloads.
+- **A Stream Deck start-up race:** if Stream Deck starts and the device
+  attaches at the same moment, Stream Deck sometimes never tells the plugin
+  which keys are showing. If no key shows up within 5 seconds, the plugin
+  restarts itself once (at most every 5 minutes), and Stream Deck starts it
+  again with the keys.
+- **Logs:** `~/.claude-codex-cockpit/streamdeck.log`, and `server.log` for a
+  server the plugin started.
 
 ## Settings
 
@@ -177,6 +236,7 @@ npm test              # the tests, on node:test, with no test dependencies
 npm start             # the app, from source
 npm run server        # just the server (the app reuses a running one)
 npm run icons         # rebuild build/icon.* from build/icon.svg
+npm run streamdeck    # rebuild the Stream Deck key images and Mini profile
 npm run dist:win      # Windows installer and zip in dist/
 npm run dist:mac      # macOS universal build (on a Mac)
 node scripts/screenshots.js   # README screenshots, from made-up data
