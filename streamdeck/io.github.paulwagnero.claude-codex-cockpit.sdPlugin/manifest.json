@@ -5,7 +5,7 @@
   "Author": "Paul Wagner",
   "Description": "Claude Code and Codex usage limits on your keys, and Allow, Always or Deny for the request that is waiting. Needs the Claude Codex Cockpit app running.",
   "URL": "https://github.com/paulwagnero/claude-codex-cockpit",
-  "Version": "0.1.0.0",
+  "Version": "0.2.0.0",
   "SDKVersion": 2,
   "Software": { "MinimumVersion": "7.1" },
   "OS": [

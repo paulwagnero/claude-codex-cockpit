@@ -1,7 +1,7 @@
 {
   "name": "claude-codex-cockpit",
   "productName": "Claude Codex Cockpit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Always-on-top desktop panel for Claude Code and Codex: usage limits with pace, live session status, and approve or deny permission requests without switching to the terminal",
   "keywords": [
     "claude-code",
