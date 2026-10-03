@@ -124,7 +124,12 @@ test('the manifest, the Mini layout and the key images agree', () => {
     manifest.Actions.map((a) => a.UUID),
     keys.ACTIONS.map((a) => `${manifest.UUID}.${a}`),
   );
-  assert.deepEqual(Object.values(make.MINI_LAYOUT).sort(), [...keys.ACTIONS].sort());
+  assert.deepEqual(
+    make.PROFILES.map((p) => p.file),
+    manifest.Profiles.map((p) => p.Name),
+  );
+  const used = new Set(make.PROFILES.flatMap((p) => Object.values(p.layout)));
+  assert.deepEqual([...used].sort(), [...keys.ACTIONS].sort(), 'every action is on some profile');
   for (const a of manifest.Actions) {
     assert.ok(fs.existsSync(path.join(DIR, `${a.Icon}.svg`)), a.Icon);
     assert.ok(fs.existsSync(path.join(DIR, `${a.States[0].Image}.svg`)), a.States[0].Image);
@@ -137,14 +142,32 @@ test('the manifest, the Mini layout and the key images agree', () => {
 
 test('the generated files are up to date (npm run streamdeck)', () => {
   for (const action of keys.ACTIONS) assert.equal(fs.readFileSync(make.keyImageFile(action), 'utf8'), make.keyImage(action), action);
-  assert.ok(fs.readFileSync(make.profileFile()).equals(make.profileZip()));
+  for (const p of make.PROFILES) assert.ok(fs.readFileSync(make.profileFile(p)).equals(make.profileZip(p)), p.file);
 });
 
-test('the profile unzips to the six keys on a Mini', () => {
-  const files = unzip(make.profileZip());
-  const profile = JSON.parse(files[`${make.PROFILE_ID}.sdProfile/manifest.json`]);
-  assert.equal(profile.DeviceModel, '20GAI9901');
-  for (const [pos, action] of Object.entries(make.MINI_LAYOUT)) assert.equal(profile.Actions[pos].UUID, `${manifest.UUID}.${action}`, pos);
+test('each profile unzips to its keys on a Mini', () => {
+  for (const p of make.PROFILES) {
+    const profile = JSON.parse(unzip(make.profileZip(p))[`${p.id}.sdProfile/manifest.json`]);
+    assert.equal(profile.DeviceModel, '20GAI9901');
+    assert.equal(profile.Name, p.name);
+    assert.deepEqual(Object.keys(profile.Actions).sort(), Object.keys(p.layout).sort());
+    for (const [pos, action] of Object.entries(p.layout)) assert.equal(profile.Actions[pos].UUID, `${manifest.UUID}.${action}`, pos);
+  }
+  assert.deepEqual(Object.keys(make.PROFILES[1].layout), ['0,0', '1,0', '2,0'], 'the top-row profile leaves the bottom row free');
+});
+
+test('top row: the usage key of the tool next in line glows, and a press allows once', () => {
+  const claudeFirst = state({ approvals: [request(), request({ id: 'r2', agent: 'codex' })] });
+  assert.match(face('claude-allow', claudeFirst), /stroke="#ffae34"/, 'Claude is next: its key glows');
+  assert.doesNotMatch(face('codex-allow', claudeFirst), /stroke="#ffae34"/, 'Codex waits its turn');
+  assert.doesNotMatch(face('claude-allow', state()), /stroke="#ffae34"/);
+  assert.match(face('claude-allow', claudeFirst), />42%|>CLAUDE</, 'it still shows the usage');
+  const view = keys.deckView(claudeFirst, now);
+  assert.deepEqual(keys.keyAction('claude-allow', view, now), { id: 'r1', decision: 'allow' });
+  assert.ok(keys.keyAction('codex-allow', view, now).refuse, 'not its turn');
+  assert.ok(keys.keyAction('claude-allow', keys.deckView(state(), now), now).ignore, 'nothing waits: just a usage key');
+  assert.ok(keys.keyAction('claude-allow', keys.deckView(claudeFirst, now, () => now + 1), now).refuse, 'same guard time');
+  assert.match(face('claude-allow', claudeFirst, () => now + 1), /stroke-width="2"/, 'thin and still while arming');
 });
 
 // Reads a stored (uncompressed) zip, checking each entry's CRC.

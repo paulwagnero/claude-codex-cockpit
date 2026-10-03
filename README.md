@@ -37,9 +37,14 @@ across the desk. **Always** approves and stops asking. For Claude Code, that
 saves the rule its own "don't ask again" would save. For a Codex command, the
 cockpit remembers the exact command in that folder.
 
-**Stream Deck.** Six keys, laid out for a Stream Deck Mini: the Claude and
-Codex usage bars, the request that's waiting, and **Allow**, **Always** and
-**Deny** for it.
+**Stream Deck.** Laid out for a Stream Deck Mini, in two profiles:
+
+- **Six keys:** the Claude and Codex usage bars, the request that's waiting,
+  and **Allow**, **Always** and **Deny** for it.
+- **Top row only:** the usage bars and the waiting request, with the bottom
+  row free for your own keys. The usage key of the tool whose request is next
+  glows yellow, and pressing it allows that request once. Requests are taken
+  one at a time, oldest first.
 
 ## Install
 
@@ -90,13 +95,23 @@ the Claude Codex Cockpit entry. Codex usage itself needs no setup.
 from its tray icon and start it again. A Stream Deck Mini switches to the
 cockpit keys once; Stream Deck asks you first. After that the keys work
 whenever Stream Deck runs, with or without the window open: if the app isn't
-running, the plugin starts the cockpit in the background. On another model,
-drag the cockpit's six actions onto keys yourself:
+running, the plugin starts the cockpit in the background.
 
-| | | |
+To use the top-row layout instead, pick **Claude Codex Cockpit (top row)** in
+Stream Deck's profile list. If it isn't there, open
+`profiles/Cockpit Mini Top Row.streamDeckProfile` in the plugin folder
+(`streamdeck/` in the app) and Stream Deck imports it. On another model, drag
+the cockpit's actions onto keys yourself:
+
+| Six keys | | |
 | --- | --- | --- |
 | Claude usage | Codex usage | Waiting request |
 | Allow once | Allow always | Deny |
+
+| Top row | | |
+| --- | --- | --- |
+| Claude usage, press to allow | Codex usage, press to allow | Waiting request |
+| *yours* | *yours* | *yours* |
 
 ## Good to know
 
